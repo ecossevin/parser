@@ -1,3 +1,5 @@
+import numpy as np
+
 class Parser:
     """
     * One function per symbol (non-terminals & terminals)
@@ -17,6 +19,7 @@ class Parser:
         self.to_parse=to_parse
         self.idx=0
         self.size=len(self.to_parse)
+        self.stack=[]
 
     def isEnd(self) : 
         return(self.idx>self.size)
@@ -35,6 +38,7 @@ class Parser:
         if self.charAt() != '"': return(False)
         if '"' in self.to_parse[self.idx+1:]:
             last=self.to_parse[self.idx+1:].index('"')
+            self.stack.append([self.to_parse[self.idx+1:self.idx+1+last]])
         else:
             return(False)
         self.idx=self.idx+last+2
@@ -43,12 +47,15 @@ class Parser:
 
     def parseNumber(self):
         #breakpoint()
-        num=False
+        is_num=False
+        num=""
         if self.idx>=self.size: return(False)
         while self.idx<self.size and self.charAt().isnumeric(): #last element idx=size-1
-            num=True
+            num+=self.charAt()
+            is_num=True
             self.idx+=1
-        if num: 
+        if is_num: 
+            self.stack.append([num])
 #            self.skipWhitespace()
             return(True)
     # VALUE ::= STRINGLIT / NUMBER / OBJECT / ARRAY
@@ -64,9 +71,19 @@ class Parser:
     def parseObject(self):
         #breakpoint()
         idx0=self.idx
+        size0=len(self.stack)
         success = self.parseChar('{') and self.parsePairs() and self.parseChar('}')
         if not success :
             self.idx=idx0
+        else:
+            obj={}
+            while(len(self.stack)>size0):
+                value=self.stack.pop()
+                if (len(value)==1 and type(value)==list): #if len > 1 : value is an array
+                    value=value
+                    value=value[0]    
+                obj[self.stack.pop()[0]]=value
+            self.stack.append(obj)
         return success
     # (PAIR ("," PAIR)* )?
     def parsePairs(self):
@@ -91,9 +108,16 @@ class Parser:
     def parseArray(self):
         #breakpoint()
         idx0=self.idx
+        size0=len(self.stack)
         success = self.parseChar("[") and self.parseValues() and self.parseChar(']')
         if not success: 
             self.idx=idx0
+        else:
+            array=np.array([])
+            while(len(self.stack)>size0):
+                array=np.append(array,self.stack.pop())
+            array=np.flip(array)
+            self.stack.append(array)
         return success
     # (VALUE ("," VALUE)* )?
     def parseValues(self):
@@ -146,6 +170,12 @@ INPUT2="""
 }
 """
 
+INPUT3="""
+{
+  "obj1" : { "a" : "A", "b" : "B"}
+}
+"""
+
 #INPUT2="""
 #<?xml version="1.0" encoding="UTF-8" ?>
 #<hello>world</hello>
@@ -158,5 +188,7 @@ mp = Parser(EXAMPLE_INPUT)
 #mp = Parser(INPUT2)
 if mp.parseValue():
     print("OK")
+    print("input = ", mp.to_parse)
+    print("stack = ", mp.stack)
 else:
     print("NO OK")
