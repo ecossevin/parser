@@ -47,10 +47,22 @@ class Parser:
             self.stack.append([num])
 #            self.skipWhitespace()
             return(True)
+
+    def parseChar(self, char):
+        if self.idx>=self.size:
+            return(False)
+        if self.charAt()==char:
+            self.idx+=1
+#            self.skipWhitespace()
+            return(True)
+        else:
+            return(False)
+ 
+
     def parse(self) -> bool:
         raise NotImplementedError("Method 'parse' must be implemented by subclasses.")
 
-class Combinators(Parser):
+class Combinators():
     """
     Grammar : 
     VALUE ::= STRINGLIT / NUMBER / OBJECT / ARRAY
@@ -61,8 +73,6 @@ class Combinators(Parser):
     This parser implements PEG semantics for the grammar.
     """
 
-    def __init__(self,to_parse):
-       Parser.__init__(self, to_parse) 
 
 
     class StringLitParser(Parser):
@@ -71,14 +81,14 @@ class Combinators(Parser):
     
     class NumberParser(Parser):
         def parse(self) -> bool:
-            return parse_number()
+            return parseNumber()
     
     class CharParser(Parser):
         def __init__(self, c: str):
             self.c = c
     
         def parse(self) -> bool:
-            return parse_char(self.c)
+            return parseChar(self.c)
     
     class Sequence(Parser):
         def __init__(self, *children: Parser):
@@ -164,31 +174,48 @@ class Combinators(Parser):
 class Json_parser(Combinators):
 
     def __init__(self,to_parse):
-       Combinators.__init__(self, to_parse) 
+       super().__init__(to_parse) 
 
+    def parsePair(self):
     # PAIR ::= STRINGLIT ":" VALUE
-    pair = Sequence(StringLitParser(), CharParser(':'), ForwardReference(lambda: value))
+       # return(Sequence(StringLitParser(), CharParser(':'), ForwardReference(lambda: value)))
+        pair = self.Sequence(self.StringLitParser(), self.CharParser(':'), self.ForwardReference(lambda: self.parseValue()))
+        return(pair)
     
+    def parsePairTails(self):
     # ("," PAIR)*
-    pair_tails = Repetition(Sequence(CharParser(','), pair))
+        pair_tails = self.Repetition(self.Sequence(self.CharParser(','), self.parsePair()))
+        return(pair_tails)
     
+    def parsePairs(self):
     # (PAIR ("," PAIR)* )?
-    pairs = Optional(Sequence(pair, pair_tails))
+        pairs = self.Optional(self.Sequence(self.parsePair(), self.parsePair()))
+        return(pairs)
     
+    def parseObject(self):
     # OBJECT  ::= "{" (PAIR ("," PAIR)* )? "}"
-    object_parser = ComposeObject(Sequence(CharParser('{'), pairs, CharParser('}')))
+        object_parser = self.ComposeObject(self.Sequence(self.CharParser('{'), self.parsePairs(), CharParser('}')))
+        return(object_parser)
     
+    def parseTails(self):
     # ("," VALUE)*
-    value_tails = Repetition(Sequence(CharParser(','), ForwardReference(lambda: value)))
+        value_tails = self.Repetition(self.Sequence(self.CharParser(','), self.ForwardReference(lambda: self.parseValue())))
+        return(value_tails)
     
+    def parseValues(self):
     # (VALUE ("," VALUE)* )?
-    values = Optional(Sequence(ForwardReference(lambda: value), value_tails))
+        values = self.Optional(self.Sequence(self.ForwardReference(lambda: self.parseValue()), self.parseTails()))
+        return(values)
     
+    def parseArray(self):
     # ARRAY ::= "[" (VALUE ("," VALUE)* )? "]"
-    array_parser = ComposeArray(Sequence(CharParser('['), values, CharParser(']')))
+        array_parser = self.ComposeArray(self.Sequence(self.CharParser('['), self.parseValues, self.CharParser(']')))
+        return(array_parser)
     
+    def parseValue(self):
     # VALUE ::= STRINGLIT / NUMBER / OBJECT / ARRAY
-    value = Choice(StringLitParser(), NumberParser(), object_parser, array_parser)
+        value = self.Choice(self.StringLitParser(), self.NumberParser(), self.parseObject(), self.parseArray)
+        return(value)
 
 
 ##########################################################        
@@ -237,12 +264,13 @@ INPUT3="""
 #mp = Parser(INPUT2)
 
 input_str = EXAMPLE_INPUT
-mc = Combinators(input_str)
-#mc = Json_parser(input_str)
+print(input_str)
+#mc = Combinators(input_str)
+#mc = Combinators(input_str)
+mc = Json_parser(input_str)
 mp = mc
 
-if mp.value:
-#if mp.parseValue():
+if mp.parseValue():
     print("OK")
     print("input = ", mp.to_parse)
     print("stack = ", mp.stack)
